@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block extra_css %}
+<style>
+    .chat-container { height: calc(100vh - 200px); min-height: 500px; }
+    .chat-messages { height: calc(100% - 120px); overflow-y: auto; }
+    .chat-input-area { border-top: 1px solid #e9ecef; padding: 1rem; background: white; }
+    .typing-indicator { display: none; }
+    .typing-indicator.active { display: block; }
+    .typing-indicator span { height: 8px; width: 8px; float: left; margin: 0 2px; background: #9e9ea1; display: block; border-radius: 50%; opacity: 0.4; animation: typing 1s infinite; }
+    @keyframes typing { 0%, 100% { transform: translateY(0); opacity: 0.4; } 50% { transform: translateY(-5px); opacity: 0.8; } }
+</style>
+{% endblock %}
+{% block content %}
+<div class="container py-4">
+    <div class="row">
+        <div class="col-md-3">
+            <div class="card mb-3">
+                <div class="card-header"><i class="bi bi-building me-2"></i>Organization</div>
+                <div class="card-body p-2">
+                    <select class="form-select" id="orgSelect" onchange="location.href=this.value?'/chat/'+this.value:'/chat'">
+                        <option value="">General Inquiry</option>
+                        {% for org in organizations %}
+                        <option value="{{ org.id }}" {% if organization and org.id == organization.id %}selected{% endif %}>{{ org.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header"><i class="bi bi-lightbulb me-2"></i>Suggested Prompts</div>
+                <div class="card-body p-2" id="prompts">
+                    <div class="list-group list-group-flush">
+                        <button class="list-group-item list-group-item-action" onclick="usePrompt(this)">What are our biggest HR challenges?</button>
+                        <button class="list-group-item list-group-item-action" onclick="usePrompt(this)">How can we improve retention?</button>
+                        <button class="list-group-item list-group-item-action" onclick="usePrompt(this)">Who is at risk of leaving?</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-9">
+            <div class="card chat-container">
+                <div class="card-header d-flex justify-content-between">
+                    <span><i class="bi bi-chat-dots me-2"></i>AI CHRO Consultant</span>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="newSession()"><i class="bi bi-plus-circle me-1"></i>New Chat</button>
+                </div>
+                <div class="chat-messages" id="msgs">
+                    <div class="chat-message assistant"><strong>AI CHRO</strong><p class="mb-0 mt-1">Hello! I'm your AI-powered HR consultant. {% if organization %}I have access to {{ organization.name }}'s data.{% endif %} How can I help?</p></div>
+                </div>
+                <div class="px-3 py-2 typing-indicator" id="typing"><span></span><span></span><span></span></div>
+                <div class="chat-input-area">
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="input" placeholder="Ask about talent, retention, workforce planning..." onkeypress="if(event.key==='Enter')send()">
+                        <button class="btn btn-primary" onclick="send()"><i class="bi bi-send"></i></button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+let sid = null;
+document.addEventListener('DOMContentLoaded', async () => {
+    const r = await apiCall('/api/chat/session', 'POST', {organization_id: '{{ organization.id if organization else "" }}' || null});
+    sid = r.session_id;
+    updatePrompts(r.suggested_prompts);
+});
+async function newSession() {
+    document.getElementById('msgs').innerHTML = '';
+    const r = await apiCall('/api/chat/session', 'POST', {organization_id: '{{ organization.id if organization else "" }}' || null});
+    sid = r.session_id;
+    addMsg('assistant', "Hello! How can I help with your HR challenges?");
+}
+async function send() {
+    const input = document.getElementById('input'), msg = input.value.trim();
+    if (!msg || !sid) return;
+    addMsg('user', msg);
+    input.value = '';
+    document.getElementById('typing').classList.add('active');
+    try {
+        const res = await fetch('/api/chat/stream', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({session_id: sid, message: msg})});
+        const reader = res.body.getReader(), decoder = new TextDecoder();
+        let full = '', div = addMsg('assistant', '', true);
+        while (true) {
+            const {done, value} = await reader.read();
+            if (done) break;
+            for (const line of decoder.decode(value).split('\n')) {
+                if (line.startsWith('data: ')) {
+                    try {
+                        const d = JSON.parse(line.slice(6));
+                        if (d.type === 'token') { full += d.content; div.querySelector('.content').innerHTML = fmt(full); }
+                        else if (d.type === 'done') updatePrompts(d.suggested_prompts);
+                    } catch {}
+                }
+            }
+        }
+    } catch (e) { addMsg('assistant', 'Error: ' + e.message); }
+    finally { document.getElementById('typing').classList.remove('active'); document.getElementById('msgs').scrollTop = 99999; }
+}
+function addMsg(role, text, streaming = false) {
+    const c = document.getElementById('msgs'), d = document.createElement('div');
+    d.className = 'chat-message ' + role;
+    d.innerHTML = role === 'user' ? `<p class="mb-0">${esc(text)}</p>` : `<strong>AI CHRO</strong><div class="content mt-1">${streaming ? '' : fmt(text)}</div>`;
+    c.appendChild(d);
+    c.scrollTop = c.scrollHeight;
+    return d;
+}
+function fmt(t) { return esc(t).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>'); }
+function esc(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
+function usePrompt(btn) { document.getElementById('input').value = btn.textContent.trim(); send(); }
+function updatePrompts(p) { if (!p) return; document.getElementById('prompts').innerHTML = '<div class="list-group list-group-flush">' + p.map(x => `<button class="list-group-item list-group-item-action" onclick="usePrompt(this)">${esc(x)}</button>`).join('') + '</div>'; }
+</script>
+{% endblock %}
