@@ -1,8 +1,12 @@
 """Flask Application - Talent Intelligence (Fractional CHRO)"""
 import os
+import sys
 import json
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify, Response, stream_with_context
+
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 import logging
