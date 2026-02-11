@@ -1,0 +1,680 @@
+{% extends "base.html" %}
+
+{% block title %}HR Integrations - {{ app_name }}{% endblock %}
+
+{% block extra_css %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+    .integration-card {
+        border: 2px solid #e9ecef;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+        transition: all 0.3s ease;
+    }
+    .integration-card:hover {
+        border-color: #5c2d91;
+        box-shadow: 0 4px 15px rgba(92, 45, 145, 0.1);
+    }
+    .integration-card.connected {
+        border-color: #27ae60;
+        background: linear-gradient(135deg, #f8fff8 0%, #eafaea 100%);
+    }
+    .integration-card.demo {
+        border-color: #3498db;
+        background: linear-gradient(135deg, #f0f8ff 0%, #e6f3ff 100%);
+    }
+    .integration-icon {
+        width: 60px;
+        height: 60px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.8rem;
+        margin-bottom: 1rem;
+    }
+    .bamboohr-icon { background: linear-gradient(135deg, #73c167 0%, #5ba84c 100%); color: white; }
+    .workday-icon { background: linear-gradient(135deg, #0875e1 0%, #0056b3 100%); color: white; }
+    .demo-icon { background: linear-gradient(135deg, #9b59b6 0%, #8e44ad 100%); color: white; }
+    .status-badge {
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+    .status-connected { background: #d5f5e3; color: #1e8449; }
+    .status-not-connected { background: #f5f5f5; color: #7f8c8d; }
+    .status-demo { background: #e8daef; color: #5c2d91; }
+    .summary-card {
+        background: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    }
+    .metric-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.75rem 0;
+        border-bottom: 1px solid #f0f0f0;
+    }
+    .metric-row:last-child { border-bottom: none; }
+    .alert-item {
+        padding: 0.75rem 1rem;
+        border-radius: 8px;
+        margin-bottom: 0.5rem;
+    }
+    .alert-warning { background: #fef9e7; border-left: 4px solid #f39c12; }
+    .alert-info { background: #eaf2f8; border-left: 4px solid #3498db; }
+    .employee-table {
+        font-size: 0.9rem;
+    }
+    .employee-table th {
+        background: #f8f9fa;
+        font-weight: 600;
+        border-bottom: 2px solid #5c2d91;
+    }
+    .tenure-badge {
+        padding: 0.2rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
+    }
+    .tenure-new { background: #e8f8f5; color: #1abc9c; }
+    .tenure-mid { background: #fef9e7; color: #f39c12; }
+    .tenure-senior { background: #e8daef; color: #5c2d91; }
+    .tab-content { padding-top: 1.5rem; }
+    .chart-container {
+        position: relative;
+        height: 250px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1"><i class="bi bi-plug text-primary me-2"></i>HR Integrations</h2>
+            <p class="text-muted mb-0">Connect to BambooHR and Workday for real-time workforce data</p>
+        </div>
+        <div>
+            <button class="btn btn-outline-primary" onclick="refreshData()">
+                <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+            </button>
+        </div>
+    </div>
+
+    <!-- Integration Cards -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="integration-card" id="bamboohr-card">
+                <div class="integration-icon bamboohr-icon">
+                    <i class="bi bi-tree"></i>
+                </div>
+                <h5>BambooHR</h5>
+                <p class="text-muted small mb-3">Employee directory, time off, performance reviews</p>
+                <span class="status-badge status-not-connected" id="bamboohr-status">Not Connected</span>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="integration-card" id="workday-card">
+                <div class="integration-icon workday-icon">
+                    <i class="bi bi-building"></i>
+                </div>
+                <h5>Workday</h5>
+                <p class="text-muted small mb-3">HCM, recruiting, learning, compensation analytics</p>
+                <span class="status-badge status-not-connected" id="workday-status">Not Connected</span>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="integration-card" id="demo-card">
+                <div class="integration-icon demo-icon">
+                    <i class="bi bi-play-circle"></i>
+                </div>
+                <h5>Demo Mode</h5>
+                <p class="text-muted small mb-3">Try with realistic sample HR data</p>
+                <button class="btn btn-primary btn-sm" id="demo-btn" onclick="enableDemoMode()">
+                    <i class="bi bi-play me-1"></i>Enable Demo
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Data Section (shown when connected) -->
+    <div id="data-section" style="display: none;">
+        <!-- Talent Summary -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="summary-card text-center">
+                    <div class="metric-value" id="total-headcount">-</div>
+                    <div class="metric-label">Total Headcount</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="summary-card text-center">
+                    <div class="metric-value" id="open-positions">-</div>
+                    <div class="metric-label">Open Positions</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="summary-card text-center">
+                    <div class="metric-value" id="turnover-rate">-</div>
+                    <div class="metric-label">Turnover Rate</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="summary-card text-center">
+                    <div class="metric-value" id="time-to-fill">-</div>
+                    <div class="metric-label">Avg. Time to Fill</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Alerts -->
+        <div class="card mb-4" id="alerts-card" style="display: none;">
+            <div class="card-header bg-white">
+                <h5 class="mb-0"><i class="bi bi-exclamation-triangle text-warning me-2"></i>Alerts</h5>
+            </div>
+            <div class="card-body" id="alerts-container"></div>
+        </div>
+
+        <!-- Tabs -->
+        <ul class="nav nav-tabs" role="tablist">
+            <li class="nav-item">
+                <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#employees-tab">
+                    <i class="bi bi-people me-1"></i>Employees
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#requisitions-tab">
+                    <i class="bi bi-briefcase me-1"></i>Requisitions
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#time-off-tab">
+                    <i class="bi bi-calendar-event me-1"></i>Time Off
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#learning-tab">
+                    <i class="bi bi-book me-1"></i>Learning
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#analytics-tab">
+                    <i class="bi bi-graph-up me-1"></i>Analytics
+                </button>
+            </li>
+        </ul>
+
+        <div class="tab-content">
+            <!-- Employees Tab -->
+            <div class="tab-pane fade show active" id="employees-tab">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table employee-table" id="employees-table">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Department</th>
+                                        <th>Job Title</th>
+                                        <th>Location</th>
+                                        <th>Manager</th>
+                                        <th>Tenure</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Requisitions Tab -->
+            <div class="tab-pane fade" id="requisitions-tab">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table" id="requisitions-table">
+                                <thead>
+                                    <tr>
+                                        <th>Requisition ID</th>
+                                        <th>Job Title</th>
+                                        <th>Department</th>
+                                        <th>Location</th>
+                                        <th>Hiring Manager</th>
+                                        <th>Candidates</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Time Off Tab -->
+            <div class="tab-pane fade" id="time-off-tab">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table" id="time-off-table">
+                                <thead>
+                                    <tr>
+                                        <th>Employee</th>
+                                        <th>Type</th>
+                                        <th>Start Date</th>
+                                        <th>End Date</th>
+                                        <th>Days</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Learning Tab -->
+            <div class="tab-pane fade" id="learning-tab">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table" id="learning-table">
+                                <thead>
+                                    <tr>
+                                        <th>Employee</th>
+                                        <th>Course</th>
+                                        <th>Type</th>
+                                        <th>Due Date</th>
+                                        <th>Status</th>
+                                        <th>Score</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Analytics Tab -->
+            <div class="tab-pane fade" id="analytics-tab">
+                <div class="row">
+                    <div class="col-md-6 mb-4">
+                        <div class="card">
+                            <div class="card-header bg-white">
+                                <h6 class="mb-0">Headcount by Department</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="chart-container">
+                                    <canvas id="department-chart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-4">
+                        <div class="card">
+                            <div class="card-header bg-white">
+                                <h6 class="mb-0">Headcount by Location</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="chart-container">
+                                    <canvas id="location-chart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-4">
+                        <div class="card">
+                            <div class="card-header bg-white">
+                                <h6 class="mb-0">Tenure Distribution</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="chart-container">
+                                    <canvas id="tenure-chart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-4">
+                        <div class="card">
+                            <div class="card-header bg-white">
+                                <h6 class="mb-0">Compensation by Department</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="chart-container">
+                                    <canvas id="compensation-chart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Not Connected Message -->
+    <div id="not-connected-section" class="text-center py-5">
+        <i class="bi bi-plug display-1 text-muted"></i>
+        <h4 class="mt-3">No Integrations Connected</h4>
+        <p class="text-muted">Connect to BambooHR or Workday, or enable Demo Mode to explore the features.</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let summaryData = null;
+let charts = {};
+
+async function checkStatus() {
+    try {
+        const result = await apiCall('/api/integrations/status');
+        updateIntegrationCards(result.status);
+
+        if (result.status.bamboohr.configured || result.status.workday.configured) {
+            document.getElementById('data-section').style.display = 'block';
+            document.getElementById('not-connected-section').style.display = 'none';
+            await loadAllData();
+        }
+    } catch (e) {
+        console.error('Error checking status:', e);
+    }
+}
+
+function updateIntegrationCards(status) {
+    // BambooHR
+    const bambooCard = document.getElementById('bamboohr-card');
+    const bambooStatus = document.getElementById('bamboohr-status');
+    if (status.bamboohr.configured) {
+        bambooCard.classList.add(status.bamboohr.demo_mode ? 'demo' : 'connected');
+        bambooStatus.className = 'status-badge ' + (status.bamboohr.demo_mode ? 'status-demo' : 'status-connected');
+        bambooStatus.textContent = status.bamboohr.demo_mode ? 'Demo Mode' : 'Connected';
+    }
+
+    // Workday
+    const workdayCard = document.getElementById('workday-card');
+    const workdayStatus = document.getElementById('workday-status');
+    if (status.workday.configured) {
+        workdayCard.classList.add(status.workday.demo_mode ? 'demo' : 'connected');
+        workdayStatus.className = 'status-badge ' + (status.workday.demo_mode ? 'status-demo' : 'status-connected');
+        workdayStatus.textContent = status.workday.demo_mode ? 'Demo Mode' : 'Connected';
+    }
+
+    // Demo card
+    const demoCard = document.getElementById('demo-card');
+    const demoBtn = document.getElementById('demo-btn');
+    if (status.demo_mode) {
+        demoCard.classList.add('demo');
+        demoBtn.innerHTML = '<i class="bi bi-check me-1"></i>Demo Active';
+        demoBtn.disabled = true;
+    }
+}
+
+async function enableDemoMode() {
+    try {
+        const btn = document.getElementById('demo-btn');
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Loading...';
+        btn.disabled = true;
+
+        await apiCall('/api/integrations/demo/enable', 'POST');
+        await checkStatus();
+    } catch (e) {
+        console.error('Error enabling demo mode:', e);
+        alert('Failed to enable demo mode');
+    }
+}
+
+async function loadAllData() {
+    await Promise.all([
+        loadTalentSummary(),
+        loadEmployees(),
+        loadRequisitions(),
+        loadTimeOff(),
+        loadLearning()
+    ]);
+}
+
+async function loadTalentSummary() {
+    try {
+        const result = await apiCall('/api/integrations/talent-summary');
+        summaryData = result.summary;
+
+        document.getElementById('total-headcount').textContent = summaryData.total_headcount;
+        document.getElementById('open-positions').textContent = summaryData.open_positions;
+        document.getElementById('turnover-rate').textContent = summaryData.turnover_rate.toFixed(1) + '%';
+        document.getElementById('time-to-fill').textContent = summaryData.time_to_fill_days.toFixed(0) + ' days';
+
+        // Show alerts
+        if (summaryData.alerts && summaryData.alerts.length > 0) {
+            document.getElementById('alerts-card').style.display = 'block';
+            const container = document.getElementById('alerts-container');
+            container.innerHTML = summaryData.alerts.map(alert => `
+                <div class="alert-item alert-${alert.type}">
+                    <strong>${alert.category.charAt(0).toUpperCase() + alert.category.slice(1)}:</strong>
+                    ${alert.message}
+                </div>
+            `).join('');
+        }
+
+        // Update charts
+        updateCharts();
+    } catch (e) {
+        console.error('Error loading talent summary:', e);
+    }
+}
+
+function updateCharts() {
+    if (!summaryData) return;
+
+    // Department chart
+    if (charts.department) charts.department.destroy();
+    const deptCtx = document.getElementById('department-chart').getContext('2d');
+    charts.department = new Chart(deptCtx, {
+        type: 'doughnut',
+        data: {
+            labels: Object.keys(summaryData.by_department),
+            datasets: [{
+                data: Object.values(summaryData.by_department),
+                backgroundColor: ['#5c2d91', '#8e44ad', '#9b59b6', '#bb8fce', '#d2b4de', '#e8daef', '#f5eef8']
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: 'right' } }
+        }
+    });
+
+    // Location chart
+    if (charts.location) charts.location.destroy();
+    const locCtx = document.getElementById('location-chart').getContext('2d');
+    charts.location = new Chart(locCtx, {
+        type: 'bar',
+        data: {
+            labels: Object.keys(summaryData.by_location),
+            datasets: [{
+                label: 'Employees',
+                data: Object.values(summaryData.by_location),
+                backgroundColor: '#5c2d91'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } }
+        }
+    });
+
+    // Tenure chart
+    if (charts.tenure) charts.tenure.destroy();
+    const tenureCtx = document.getElementById('tenure-chart').getContext('2d');
+    charts.tenure = new Chart(tenureCtx, {
+        type: 'pie',
+        data: {
+            labels: Object.keys(summaryData.tenure_distribution),
+            datasets: [{
+                data: Object.values(summaryData.tenure_distribution),
+                backgroundColor: ['#1abc9c', '#f39c12', '#5c2d91', '#2c3e50']
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: 'right' } }
+        }
+    });
+
+    // Load compensation data for chart
+    loadCompensationChart();
+}
+
+async function loadCompensationChart() {
+    try {
+        const result = await apiCall('/api/integrations/compensation');
+        if (result.success && result.compensation) {
+            if (charts.compensation) charts.compensation.destroy();
+            const ctx = document.getElementById('compensation-chart').getContext('2d');
+            const salaryByOrg = result.compensation.salary_by_org;
+            charts.compensation = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(salaryByOrg),
+                    datasets: [{
+                        label: 'Avg Salary',
+                        data: Object.values(salaryByOrg),
+                        backgroundColor: '#27ae60'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: {
+                            ticks: {
+                                callback: value => '$' + value.toLocaleString()
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    } catch (e) {
+        console.error('Error loading compensation:', e);
+    }
+}
+
+async function loadEmployees() {
+    try {
+        const result = await apiCall('/api/integrations/employees');
+        const tbody = document.querySelector('#employees-table tbody');
+        tbody.innerHTML = result.employees.map(emp => {
+            let tenureClass = 'tenure-new';
+            let tenureText = 'New';
+            if (emp.tenure_years) {
+                if (emp.tenure_years >= 5) {
+                    tenureClass = 'tenure-senior';
+                    tenureText = emp.tenure_years.toFixed(1) + ' yrs';
+                } else if (emp.tenure_years >= 2) {
+                    tenureClass = 'tenure-mid';
+                    tenureText = emp.tenure_years.toFixed(1) + ' yrs';
+                } else {
+                    tenureText = emp.tenure_years.toFixed(1) + ' yrs';
+                }
+            }
+            return `
+                <tr>
+                    <td><strong>${emp.full_name}</strong><br><small class="text-muted">${emp.email}</small></td>
+                    <td>${emp.department || '-'}</td>
+                    <td>${emp.job_title || '-'}</td>
+                    <td>${emp.location || '-'}</td>
+                    <td>${emp.manager_name || '-'}</td>
+                    <td><span class="tenure-badge ${tenureClass}">${tenureText}</span></td>
+                </tr>
+            `;
+        }).join('');
+    } catch (e) {
+        console.error('Error loading employees:', e);
+    }
+}
+
+async function loadRequisitions() {
+    try {
+        const result = await apiCall('/api/integrations/requisitions');
+        const tbody = document.querySelector('#requisitions-table tbody');
+        tbody.innerHTML = result.requisitions.map(req => `
+            <tr>
+                <td><strong>${req.requisition_id}</strong></td>
+                <td>${req.job_title}</td>
+                <td>${req.supervisory_organization}</td>
+                <td>${req.location || '-'}</td>
+                <td>${req.hiring_manager || '-'}</td>
+                <td><span class="badge bg-primary">${req.candidates_count}</span></td>
+                <td><span class="badge bg-${req.status === 'open' ? 'success' : 'secondary'}">${req.status}</span></td>
+            </tr>
+        `).join('');
+    } catch (e) {
+        console.error('Error loading requisitions:', e);
+    }
+}
+
+async function loadTimeOff() {
+    try {
+        const result = await apiCall('/api/integrations/time-off');
+        const tbody = document.querySelector('#time-off-table tbody');
+        tbody.innerHTML = result.time_off_requests.map(req => `
+            <tr>
+                <td>${req.employee_name}</td>
+                <td>${req.type}</td>
+                <td>${new Date(req.start_date).toLocaleDateString()}</td>
+                <td>${new Date(req.end_date).toLocaleDateString()}</td>
+                <td>${req.amount}</td>
+                <td><span class="badge bg-${req.status === 'approved' ? 'success' : req.status === 'pending' ? 'warning' : 'secondary'}">${req.status}</span></td>
+            </tr>
+        `).join('');
+    } catch (e) {
+        console.error('Error loading time off:', e);
+    }
+}
+
+async function loadLearning() {
+    try {
+        const result = await apiCall('/api/integrations/learning');
+        const tbody = document.querySelector('#learning-table tbody');
+        tbody.innerHTML = result.enrollments.map(e => {
+            let statusClass = 'secondary';
+            if (e.status === 'completed') statusClass = 'success';
+            else if (e.status === 'in_progress') statusClass = 'primary';
+            else if (e.status === 'overdue') statusClass = 'danger';
+            else if (e.status === 'enrolled') statusClass = 'info';
+
+            return `
+                <tr>
+                    <td>${e.worker_name}</td>
+                    <td>${e.course_name}</td>
+                    <td><span class="badge bg-${e.course_type === 'required' ? 'danger' : 'secondary'}">${e.course_type}</span></td>
+                    <td>${e.due_date ? new Date(e.due_date).toLocaleDateString() : '-'}</td>
+                    <td><span class="badge bg-${statusClass}">${e.status}</span></td>
+                    <td>${e.score ? e.score + '%' : '-'}</td>
+                </tr>
+            `;
+        }).join('');
+    } catch (e) {
+        console.error('Error loading learning:', e);
+    }
+}
+
+async function refreshData() {
+    await loadAllData();
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', checkStatus);
+</script>
+{% endblock %}

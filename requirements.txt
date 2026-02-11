@@ -17,5 +17,8 @@ python-dateutil==2.8.2
 # Security
 python-dotenv==1.0.0
 
+# HTTP Client for integrations
+requests==2.31.0
+
 # Production server
 gunicorn==21.2.0

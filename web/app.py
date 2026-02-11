@@ -29,6 +29,7 @@ repo = TalentRepository()
 
 from src.ai_core.chat_engine import create_chat_engine
 from src.patterns.benchmark_engine import create_hr_benchmarks
+from src.integrations import get_integration_manager
 
 APP_NAME = "Talent Intelligence"
 APP_VERSION = "1.0.0"
@@ -121,6 +122,151 @@ def api_run_benchmark(org_id):
         return jsonify({'success': False, 'error': 'No valid metrics'}), 400
     report = engine.analyze(values, entity_id=org_id)
     return jsonify({'success': True, 'benchmark': report.to_dict()})
+
+# Integration Routes
+@app.route('/integrations')
+def integrations_view():
+    """HR integrations page."""
+    integration_manager = get_integration_manager()
+    status = integration_manager.get_integration_status()
+    return render_template('integrations.html', integration_status=status)
+
+@app.route('/api/integrations/status', methods=['GET'])
+def api_integration_status():
+    """Get integration connection status."""
+    integration_manager = get_integration_manager()
+    return jsonify({
+        'success': True,
+        'status': integration_manager.get_integration_status()
+    })
+
+@app.route('/api/integrations/demo/enable', methods=['POST'])
+def api_enable_demo_mode():
+    """Enable demo mode for integrations."""
+    integration_manager = get_integration_manager()
+    integration_manager.enable_demo_mode()
+    return jsonify({
+        'success': True,
+        'message': 'Demo mode enabled',
+        'status': integration_manager.get_integration_status()
+    })
+
+@app.route('/api/integrations/employees', methods=['GET'])
+def api_get_integration_employees():
+    """Get unified employee list from integrations."""
+    integration_manager = get_integration_manager()
+    if not integration_manager.is_configured:
+        return jsonify({'success': False, 'error': 'No integrations configured'}), 400
+
+    active_only = request.args.get('active_only', 'true').lower() == 'true'
+    employees = integration_manager.get_employees(active_only=active_only)
+    return jsonify({
+        'success': True,
+        'employees': [emp.to_dict() for emp in employees],
+        'count': len(employees)
+    })
+
+@app.route('/api/integrations/time-off', methods=['GET'])
+def api_get_time_off_requests():
+    """Get time off requests from integrations."""
+    integration_manager = get_integration_manager()
+    if not integration_manager.is_configured:
+        return jsonify({'success': False, 'error': 'No integrations configured'}), 400
+
+    status = request.args.get('status')
+    requests_list = integration_manager.get_time_off_requests(status=status)
+    return jsonify({
+        'success': True,
+        'time_off_requests': requests_list,
+        'count': len(requests_list)
+    })
+
+@app.route('/api/integrations/requisitions', methods=['GET'])
+def api_get_job_requisitions():
+    """Get job requisitions from integrations."""
+    integration_manager = get_integration_manager()
+    if not integration_manager.is_configured:
+        return jsonify({'success': False, 'error': 'No integrations configured'}), 400
+
+    status = request.args.get('status')
+    requisitions = integration_manager.get_job_requisitions(status=status)
+    return jsonify({
+        'success': True,
+        'requisitions': requisitions,
+        'count': len(requisitions)
+    })
+
+@app.route('/api/integrations/learning', methods=['GET'])
+def api_get_learning_enrollments():
+    """Get learning enrollments from integrations."""
+    integration_manager = get_integration_manager()
+    if not integration_manager.is_configured:
+        return jsonify({'success': False, 'error': 'No integrations configured'}), 400
+
+    status = request.args.get('status')
+    enrollments = integration_manager.get_learning_enrollments(status=status)
+    return jsonify({
+        'success': True,
+        'enrollments': enrollments,
+        'count': len(enrollments)
+    })
+
+@app.route('/api/integrations/goals', methods=['GET'])
+def api_get_goal_progress():
+    """Get goal progress from integrations."""
+    integration_manager = get_integration_manager()
+    if not integration_manager.is_configured:
+        return jsonify({'success': False, 'error': 'No integrations configured'}), 400
+
+    goals = integration_manager.get_goal_progress()
+    return jsonify({
+        'success': True,
+        'goals': goals,
+        'count': len(goals)
+    })
+
+@app.route('/api/integrations/performance-reviews', methods=['GET'])
+def api_get_performance_reviews():
+    """Get performance reviews from integrations."""
+    integration_manager = get_integration_manager()
+    if not integration_manager.is_configured:
+        return jsonify({'success': False, 'error': 'No integrations configured'}), 400
+
+    reviews = integration_manager.get_performance_reviews()
+    return jsonify({
+        'success': True,
+        'reviews': reviews,
+        'count': len(reviews)
+    })
+
+@app.route('/api/integrations/compensation', methods=['GET'])
+def api_get_compensation_report():
+    """Get compensation report from integrations."""
+    integration_manager = get_integration_manager()
+    if not integration_manager.is_configured:
+        return jsonify({'success': False, 'error': 'No integrations configured'}), 400
+
+    report = integration_manager.get_compensation_report()
+    if not report:
+        return jsonify({'success': False, 'error': 'Compensation data not available'}), 400
+
+    return jsonify({
+        'success': True,
+        'compensation': report
+    })
+
+@app.route('/api/integrations/talent-summary', methods=['GET'])
+def api_get_talent_summary():
+    """Get aggregated talent summary from all integrations."""
+    integration_manager = get_integration_manager()
+    if not integration_manager.is_configured:
+        return jsonify({'success': False, 'error': 'No integrations configured'}), 400
+
+    summary = integration_manager.get_talent_summary()
+    return jsonify({
+        'success': True,
+        'summary': summary.to_dict()
+    })
 
 # Chat API
 chat_sessions = {}
