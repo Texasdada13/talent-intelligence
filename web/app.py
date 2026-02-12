@@ -316,6 +316,7 @@ def api_chat_stream():
                    headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})
 
 @app.route('/health')
+@limiter.exempt
 def health():
     return jsonify({'status': 'healthy', 'app': APP_NAME})
 
