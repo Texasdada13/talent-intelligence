@@ -1,0 +1,294 @@
+{% extends "base.html" %}
+{% block title %}Talent Assessment - {{ app_name }}{% endblock %}
+{% block extra_css %}
+<style>
+    .nine-box { display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); gap: 4px; height: 420px; }
+    .nine-box-cell { border-radius: 8px; padding: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: transform 0.15s; position: relative; }
+    .nine-box-cell:hover { transform: scale(1.03); z-index: 1; }
+    .nine-box-cell .cell-count { font-size: 2rem; font-weight: 700; }
+    .nine-box-cell .cell-label { font-size: 0.75rem; text-align: center; opacity: 0.9; }
+    .box-star { background: #27ae60; color: white; }
+    .box-high-potential { background: #2ecc71; color: white; }
+    .box-solid { background: #82e0aa; color: #1a5e2a; }
+    .box-emerging { background: #85c1e9; color: white; }
+    .box-core { background: #aed6f1; color: #1a4a6e; }
+    .box-effective { background: #d4efdf; color: #1a5e2a; }
+    .box-inconsistent { background: #f9e79f; color: #7d6608; }
+    .box-development { background: #f5cba7; color: #7e5109; }
+    .box-action { background: #f1948a; color: white; }
+    .axis-label { font-weight: 600; color: #5c2d91; font-size: 0.85rem; }
+    .rating-badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; }
+    .emp-row { transition: background 0.15s; }
+    .emp-row:hover { background: #f8f5fc; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="container py-4">
+    <nav aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="/">Home</a></li><li class="breadcrumb-item active">Talent Assessment</li></ol></nav>
+    <div class="d-flex justify-content-between align-items-start mb-4">
+        <div>
+            <h2><i class="bi bi-person-check me-2" style="color:#8e44ad;"></i>Talent Assessment</h2>
+            <p class="text-muted mb-0">9-box grid analysis of performance &amp; potential across your organization</p>
+        </div>
+        <div class="d-flex gap-2">
+            <select class="form-select" id="orgSelect" onchange="loadData()">
+                <option value="">All Organizations</option>
+                {% for org in organizations %}
+                <option value="{{ org.id }}">{{ org.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3"><div class="card metric-card"><div class="metric-value" id="totalAssessed">--</div><div class="metric-label">Employees Assessed</div></div></div>
+        <div class="col-md-3"><div class="card metric-card"><div class="metric-value score-excellent" id="starCount">--</div><div class="metric-label">Star Performers</div></div></div>
+        <div class="col-md-3"><div class="card metric-card"><div class="metric-value score-fair" id="developCount">--</div><div class="metric-label">Need Development</div></div></div>
+        <div class="col-md-3"><div class="card metric-card"><div class="metric-value" id="unassessedCount" style="color:#95a5a6;">--</div><div class="metric-label">Unassessed</div></div></div>
+    </div>
+
+    <div class="row g-4">
+        <!-- 9-Box Grid -->
+        <div class="col-lg-7">
+            <div class="card">
+                <div class="card-header"><h5 class="mb-0">9-Box Talent Grid</h5></div>
+                <div class="card-body">
+                    <div class="text-center mb-2"><span class="axis-label">POTENTIAL &rarr;</span></div>
+                    <div class="d-flex">
+                        <div class="d-flex flex-column justify-content-between me-2" style="writing-mode: vertical-lr; transform: rotate(180deg);">
+                            <span class="axis-label">PERFORMANCE &rarr;</span>
+                        </div>
+                        <div class="nine-box flex-fill" id="nineBoxGrid">
+                            <!-- Row 3: High Performance -->
+                            <div class="nine-box-cell box-solid" data-box="high-low" onclick="filterByBox('High','Low')">
+                                <div class="cell-count" id="box-high-low">0</div>
+                                <div class="cell-label">Solid<br>Performer</div>
+                            </div>
+                            <div class="nine-box-cell box-high-potential" data-box="high-medium" onclick="filterByBox('High','Medium')">
+                                <div class="cell-count" id="box-high-medium">0</div>
+                                <div class="cell-label">High<br>Potential</div>
+                            </div>
+                            <div class="nine-box-cell box-star" data-box="high-high" onclick="filterByBox('High','High')">
+                                <div class="cell-count" id="box-high-high">0</div>
+                                <div class="cell-label">Star</div>
+                            </div>
+                            <!-- Row 2: Medium Performance -->
+                            <div class="nine-box-cell box-effective" data-box="medium-low" onclick="filterByBox('Medium','Low')">
+                                <div class="cell-count" id="box-medium-low">0</div>
+                                <div class="cell-label">Effective</div>
+                            </div>
+                            <div class="nine-box-cell box-core" data-box="medium-medium" onclick="filterByBox('Medium','Medium')">
+                                <div class="cell-count" id="box-medium-medium">0</div>
+                                <div class="cell-label">Core<br>Player</div>
+                            </div>
+                            <div class="nine-box-cell box-emerging" data-box="medium-high" onclick="filterByBox('Medium','High')">
+                                <div class="cell-count" id="box-medium-high">0</div>
+                                <div class="cell-label">Emerging<br>Star</div>
+                            </div>
+                            <!-- Row 1: Low Performance -->
+                            <div class="nine-box-cell box-action" data-box="low-low" onclick="filterByBox('Low','Low')">
+                                <div class="cell-count" id="box-low-low">0</div>
+                                <div class="cell-label">Action<br>Required</div>
+                            </div>
+                            <div class="nine-box-cell box-development" data-box="low-medium" onclick="filterByBox('Low','Medium')">
+                                <div class="cell-count" id="box-low-medium">0</div>
+                                <div class="cell-label">Development<br>Needed</div>
+                            </div>
+                            <div class="nine-box-cell box-inconsistent" data-box="low-high" onclick="filterByBox('Low','High')">
+                                <div class="cell-count" id="box-low-high">0</div>
+                                <div class="cell-label">Inconsistent<br>Player</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-between mt-2 px-4">
+                        <small class="text-muted">Low Potential</small>
+                        <small class="text-muted">High Potential</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Distribution Chart -->
+        <div class="col-lg-5">
+            <div class="card mb-4">
+                <div class="card-header"><h5 class="mb-0">Performance Distribution</h5></div>
+                <div class="card-body"><canvas id="perfChart" height="200"></canvas></div>
+            </div>
+            <div class="card">
+                <div class="card-header"><h5 class="mb-0">Potential Distribution</h5></div>
+                <div class="card-body"><canvas id="potentialChart" height="200"></canvas></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Employee Table -->
+    <div class="card mt-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0" id="tableTitle">All Assessed Employees</h5>
+            <button class="btn btn-sm btn-outline-secondary" onclick="clearFilter()">Clear Filter</button>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr><th>Name</th><th>Title</th><th>Performance</th><th>Potential</th><th>Category</th><th>Flight Risk</th></tr>
+                    </thead>
+                    <tbody id="empTableBody">
+                        <tr><td colspan="6" class="text-center text-muted py-4">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+let allEmployees = [];
+let perfChart, potentialChart;
+
+const DEMO_EMPLOYEES = [
+    {first_name:'Sarah',last_name:'Chen',job_title:'VP Engineering',performance_rating:'Exceeds',potential_rating:'High',talent_category:'Star',flight_risk:'Low',engagement_score:92},
+    {first_name:'James',last_name:'Wilson',job_title:'Senior Developer',performance_rating:'Exceeds',potential_rating:'High',talent_category:'Star',flight_risk:'Medium',engagement_score:88},
+    {first_name:'Maria',last_name:'Garcia',job_title:'Product Manager',performance_rating:'Exceeds',potential_rating:'Medium',talent_category:'High Potential',flight_risk:'Low',engagement_score:85},
+    {first_name:'David',last_name:'Kim',job_title:'Data Scientist',performance_rating:'Exceeds',potential_rating:'Low',talent_category:'Solid Performer',flight_risk:'Low',engagement_score:80},
+    {first_name:'Emily',last_name:'Brown',job_title:'UX Designer',performance_rating:'Meets',potential_rating:'High',talent_category:'Emerging Star',flight_risk:'Medium',engagement_score:78},
+    {first_name:'Michael',last_name:'Johnson',job_title:'Sales Director',performance_rating:'Meets',potential_rating:'Medium',talent_category:'Core Player',flight_risk:'Low',engagement_score:75},
+    {first_name:'Lisa',last_name:'Anderson',job_title:'HR Manager',performance_rating:'Meets',potential_rating:'Medium',talent_category:'Core Player',flight_risk:'Low',engagement_score:82},
+    {first_name:'Robert',last_name:'Taylor',job_title:'Marketing Analyst',performance_rating:'Meets',potential_rating:'Low',talent_category:'Effective',flight_risk:'Low',engagement_score:70},
+    {first_name:'Jennifer',last_name:'Martinez',job_title:'Finance Lead',performance_rating:'Exceeds',potential_rating:'Medium',talent_category:'High Potential',flight_risk:'Low',engagement_score:87},
+    {first_name:'Chris',last_name:'Lee',job_title:'DevOps Engineer',performance_rating:'Meets',potential_rating:'High',talent_category:'Emerging Star',flight_risk:'High',engagement_score:65},
+    {first_name:'Amanda',last_name:'White',job_title:'Account Executive',performance_rating:'Below',potential_rating:'Medium',talent_category:'Development Needed',flight_risk:'Medium',engagement_score:60},
+    {first_name:'Daniel',last_name:'Harris',job_title:'QA Engineer',performance_rating:'Below',potential_rating:'Low',talent_category:'Action Required',flight_risk:'High',engagement_score:55},
+    {first_name:'Rachel',last_name:'Clark',job_title:'Project Manager',performance_rating:'Meets',potential_rating:'Medium',talent_category:'Core Player',flight_risk:'Medium',engagement_score:73},
+    {first_name:'Kevin',last_name:'Lewis',job_title:'Software Engineer',performance_rating:'Exceeds',potential_rating:'High',talent_category:'Star',flight_risk:'Low',engagement_score:90},
+    {first_name:'Sophia',last_name:'Walker',job_title:'Business Analyst',performance_rating:'Below',potential_rating:'High',talent_category:'Inconsistent Player',flight_risk:'Medium',engagement_score:62},
+    {first_name:'Andrew',last_name:'Hall',job_title:'Support Lead',performance_rating:'Meets',potential_rating:'Low',talent_category:'Effective',flight_risk:'Low',engagement_score:68},
+    {first_name:'Nicole',last_name:'Young',job_title:'Recruiter',performance_rating:'Exceeds',potential_rating:'Medium',talent_category:'High Potential',flight_risk:'Low',engagement_score:84},
+    {first_name:'Tom',last_name:'King',job_title:'CFO',performance_rating:'Exceeds',potential_rating:'High',talent_category:'Star',flight_risk:'Low',engagement_score:91}
+];
+
+function mapRating(rating) {
+    if (!rating) return null;
+    const r = rating.toLowerCase();
+    if (r.includes('exceed') || r.includes('high') || r.includes('outstanding')) return 'High';
+    if (r.includes('meet') || r.includes('medium') || r.includes('satisfactory')) return 'Medium';
+    if (r.includes('below') || r.includes('low') || r.includes('needs')) return 'Low';
+    return 'Medium';
+}
+
+async function loadData() {
+    const orgId = document.getElementById('orgSelect').value;
+    try {
+        const url = orgId ? `/api/organizations/${orgId}/employees` : null;
+        if (url) {
+            const r = await apiCall(url);
+            allEmployees = r.employees || [];
+        } else {
+            allEmployees = [];
+        }
+    } catch(e) {
+        allEmployees = [];
+    }
+    if (allEmployees.length === 0) allEmployees = DEMO_EMPLOYEES;
+    renderAll(allEmployees);
+}
+
+function renderAll(employees) {
+    const grid = {}, perfDist = {High:0,Medium:0,Low:0}, potDist = {High:0,Medium:0,Low:0};
+    let stars = 0, devNeeded = 0, unassessed = 0;
+
+    ['high','medium','low'].forEach(p => ['high','medium','low'].forEach(pot => grid[`${p}-${pot}`] = 0));
+
+    employees.forEach(emp => {
+        const perf = mapRating(emp.performance_rating);
+        const pot = mapRating(emp.potential_rating);
+        if (!perf || !pot) { unassessed++; return; }
+        const key = `${perf.toLowerCase()}-${pot.toLowerCase()}`;
+        grid[key] = (grid[key] || 0) + 1;
+        perfDist[perf]++;
+        potDist[pot]++;
+        if (perf === 'High' && pot === 'High') stars++;
+        if (perf === 'Low' && (pot === 'Low' || pot === 'Medium')) devNeeded++;
+    });
+
+    document.getElementById('totalAssessed').textContent = employees.length - unassessed;
+    document.getElementById('starCount').textContent = stars;
+    document.getElementById('developCount').textContent = devNeeded;
+    document.getElementById('unassessedCount').textContent = unassessed;
+
+    Object.entries(grid).forEach(([key, count]) => {
+        const el = document.getElementById(`box-${key}`);
+        if (el) el.textContent = count;
+    });
+
+    renderCharts(perfDist, potDist);
+    renderTable(employees);
+}
+
+function renderCharts(perfDist, potDist) {
+    const perfCtx = document.getElementById('perfChart').getContext('2d');
+    const potCtx = document.getElementById('potentialChart').getContext('2d');
+    if (perfChart) perfChart.destroy();
+    if (potentialChart) potentialChart.destroy();
+
+    perfChart = new Chart(perfCtx, {
+        type: 'doughnut',
+        data: { labels: ['High','Medium','Low'], datasets: [{ data: [perfDist.High, perfDist.Medium, perfDist.Low], backgroundColor: ['#27ae60','#3498db','#e74c3c'] }] },
+        options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+    });
+    potentialChart = new Chart(potCtx, {
+        type: 'doughnut',
+        data: { labels: ['High','Medium','Low'], datasets: [{ data: [potDist.High, potDist.Medium, potDist.Low], backgroundColor: ['#8e44ad','#3498db','#95a5a6'] }] },
+        options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+    });
+}
+
+function renderTable(employees, title) {
+    document.getElementById('tableTitle').textContent = title || 'All Assessed Employees';
+    const tbody = document.getElementById('empTableBody');
+    if (!employees.length) { tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">No employees found</td></tr>'; return; }
+    tbody.innerHTML = employees.map(e => `<tr class="emp-row">
+        <td><strong>${e.first_name} ${e.last_name}</strong></td>
+        <td>${e.job_title || '--'}</td>
+        <td><span class="rating-badge" style="background:${perfColor(e.performance_rating)}">${e.performance_rating || '--'}</span></td>
+        <td><span class="rating-badge" style="background:${potColor(e.potential_rating)}">${e.potential_rating || '--'}</span></td>
+        <td>${e.talent_category || '--'}</td>
+        <td><span class="badge ${riskClass(e.flight_risk)}">${e.flight_risk || '--'}</span></td>
+    </tr>`).join('');
+}
+
+function perfColor(r) {
+    if (!r) return '#eee';
+    const v = r.toLowerCase();
+    if (v.includes('exceed') || v.includes('high')) return '#d5f5e3';
+    if (v.includes('meet') || v.includes('medium')) return '#d6eaf8';
+    return '#fadbd8';
+}
+function potColor(r) {
+    if (!r) return '#eee';
+    const v = r.toLowerCase();
+    if (v.includes('high')) return '#e8daef';
+    if (v.includes('medium')) return '#d6eaf8';
+    return '#eee';
+}
+function riskClass(r) {
+    if (!r) return 'bg-secondary';
+    const v = r.toLowerCase();
+    if (v === 'critical') return 'risk-critical';
+    if (v === 'high') return 'risk-high';
+    if (v === 'medium') return 'risk-medium';
+    return 'risk-low';
+}
+
+function filterByBox(perf, pot) {
+    const filtered = allEmployees.filter(e => mapRating(e.performance_rating) === perf && mapRating(e.potential_rating) === pot);
+    renderTable(filtered, `${perf} Performance / ${pot} Potential`);
+}
+function clearFilter() { renderTable(allEmployees); }
+
+loadData();
+</script>
+{% endblock %}

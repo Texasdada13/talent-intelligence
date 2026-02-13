@@ -1,0 +1,212 @@
+{% extends "base.html" %}
+{% block title %}Succession Planning - {{ app_name }}{% endblock %}
+{% block extra_css %}
+<style>
+    .pipeline-stage { text-align: center; padding: 16px; border-radius: 12px; position: relative; }
+    .pipeline-stage::after { content: '\u25B6'; position: absolute; right: -16px; top: 50%; transform: translateY(-50%); color: #ccc; font-size: 1.2rem; }
+    .pipeline-stage:last-child::after { display: none; }
+    .bench-strong { background: #d5f5e3; border: 2px solid #27ae60; }
+    .bench-adequate { background: #d6eaf8; border: 2px solid #3498db; }
+    .bench-weak { background: #fef9e7; border: 2px solid #f39c12; }
+    .bench-none { background: #fadbd8; border: 2px solid #e74c3c; }
+    .successor-card { border-radius: 10px; padding: 12px; margin-bottom: 8px; background: #f8f5fc; border-left: 4px solid #8e44ad; }
+    .readiness-pill { padding: 3px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; }
+    .ready-now { background: #27ae60; color: white; }
+    .ready-1yr { background: #2ecc71; color: white; }
+    .ready-2yr { background: #f39c12; color: white; }
+    .ready-3yr { background: #e67e22; color: white; }
+    .role-card { border-radius: 12px; padding: 16px; margin-bottom: 12px; background: white; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+</style>
+{% endblock %}
+{% block content %}
+<div class="container py-4">
+    <nav aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="/">Home</a></li><li class="breadcrumb-item active">Succession Planning</li></ol></nav>
+    <div class="d-flex justify-content-between align-items-start mb-4">
+        <div>
+            <h2><i class="bi bi-diagram-3 me-2" style="color:#8e44ad;"></i>Succession Planning</h2>
+            <p class="text-muted mb-0">Leadership pipeline and bench strength analysis</p>
+        </div>
+        <select class="form-select" style="width:auto;" id="orgSelect" onchange="loadData()">
+            <option value="">All Organizations</option>
+            {% for org in organizations %}
+            <option value="{{ org.id }}">{{ org.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <!-- Key Metrics -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3"><div class="card metric-card"><div class="metric-value" id="criticalRoles" style="color:#8e44ad;">--</div><div class="metric-label">Critical Roles</div></div></div>
+        <div class="col-md-3"><div class="card metric-card"><div class="metric-value score-good" id="coverageRate">--</div><div class="metric-label">Succession Coverage</div></div></div>
+        <div class="col-md-3"><div class="card metric-card"><div class="metric-value" id="readyNow" style="color:#27ae60;">--</div><div class="metric-label">Ready Now</div></div></div>
+        <div class="col-md-3"><div class="card metric-card"><div class="metric-value score-fair" id="atRiskRoles">--</div><div class="metric-label">Uncovered Roles</div></div></div>
+    </div>
+
+    <!-- Leadership Pipeline -->
+    <div class="card mb-4">
+        <div class="card-header"><h5 class="mb-0">Leadership Pipeline</h5></div>
+        <div class="card-body">
+            <div class="row g-3" id="pipelineStages"></div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <!-- Critical Roles -->
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header"><h5 class="mb-0">Critical Role Succession</h5></div>
+                <div class="card-body" id="criticalRolesList"></div>
+            </div>
+        </div>
+
+        <!-- Right Sidebar -->
+        <div class="col-lg-4">
+            <div class="card mb-4">
+                <div class="card-header"><h5 class="mb-0">Bench Strength Overview</h5></div>
+                <div class="card-body"><canvas id="benchChart" height="260"></canvas></div>
+            </div>
+            <div class="card">
+                <div class="card-header"><h5 class="mb-0"><i class="bi bi-exclamation-triangle me-2"></i>Key Risks</h5></div>
+                <div class="card-body" id="keyRisks"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+const PIPELINE = [
+    {stage:'Individual Contributors',count:95,color:'#d2b4de'},
+    {stage:'Team Leads',count:18,color:'#bb8fce'},
+    {stage:'Managers',count:12,color:'#a569bd'},
+    {stage:'Directors',count:6,color:'#8e44ad'},
+    {stage:'VPs / C-Suite',count:4,color:'#6c3483'}
+];
+
+const CRITICAL_ROLES = [
+    {
+        role:'CEO',holder:'Thomas Wright',tenure:'8 years',retirementRisk:'3-5 years',
+        bench:'strong',
+        successors:[
+            {name:'Sarah Chen',title:'VP Engineering',readiness:'ready-1yr',readinessLabel:'1-2 Years',strengths:['Technical vision','Team building'],gaps:['Financial acumen','Board relations']},
+            {name:'Michael Johnson',title:'Sales Director',readiness:'ready-2yr',readinessLabel:'2-3 Years',strengths:['Revenue growth','Client relationships'],gaps:['Technical depth','Operations']}
+        ]
+    },
+    {
+        role:'CTO',holder:'Sarah Chen',tenure:'4 years',retirementRisk:'Low',
+        bench:'adequate',
+        successors:[
+            {name:'Kevin Lewis',title:'Software Engineer',readiness:'ready-2yr',readinessLabel:'2-3 Years',strengths:['Technical excellence','Innovation'],gaps:['People management','Strategy']},
+            {name:'James Wilson',title:'Senior Developer',readiness:'ready-2yr',readinessLabel:'2-3 Years',strengths:['Architecture','Mentoring'],gaps:['Executive presence','Vendor management']}
+        ]
+    },
+    {
+        role:'CFO',holder:'Tom King',tenure:'6 years',retirementRisk:'5+ years',
+        bench:'weak',
+        successors:[
+            {name:'Jennifer Martinez',title:'Finance Lead',readiness:'ready-2yr',readinessLabel:'2-3 Years',strengths:['Financial modeling','Compliance'],gaps:['Investor relations','M&A experience']}
+        ]
+    },
+    {
+        role:'VP Sales',holder:'Michael Johnson',tenure:'5 years',retirementRisk:'Low',
+        bench:'adequate',
+        successors:[
+            {name:'Amanda White',title:'Account Executive',readiness:'ready-3yr',readinessLabel:'3+ Years',strengths:['Client relationships','Deal closing'],gaps:['Team leadership','Strategy','Performance consistency']}
+        ]
+    },
+    {
+        role:'VP Product',holder:'Maria Garcia',tenure:'3 years',retirementRisk:'Low',
+        bench:'none',
+        successors:[]
+    },
+    {
+        role:'VP HR',holder:'Lisa Anderson',tenure:'4 years',retirementRisk:'Low',
+        bench:'weak',
+        successors:[
+            {name:'Nicole Young',title:'Recruiter',readiness:'ready-3yr',readinessLabel:'3+ Years',strengths:['Talent acquisition','Culture building'],gaps:['Compensation design','Labor law','Executive coaching']}
+        ]
+    }
+];
+
+const KEY_RISKS = [
+    {icon:'bi-exclamation-circle',color:'#e74c3c',text:'VP Product has NO succession candidates identified'},
+    {icon:'bi-clock',color:'#f39c12',text:'CFO bench strength is weak with only 1 candidate (2-3 years out)'},
+    {icon:'bi-person-x',color:'#e74c3c',text:'CTO successor pipeline relies on internal candidates only'},
+    {icon:'bi-arrow-repeat',color:'#3498db',text:'3 of 6 critical roles have successors 2+ years away from readiness'}
+];
+
+let benchChart;
+
+function loadData() {
+    document.getElementById('criticalRoles').textContent = CRITICAL_ROLES.length;
+    const covered = CRITICAL_ROLES.filter(r => r.successors.length > 0).length;
+    document.getElementById('coverageRate').textContent = Math.round(covered / CRITICAL_ROLES.length * 100) + '%';
+    const readyNow = CRITICAL_ROLES.reduce((s,r) => s + r.successors.filter(su => su.readiness === 'ready-now').length, 0);
+    document.getElementById('readyNow').textContent = readyNow;
+    document.getElementById('atRiskRoles').textContent = CRITICAL_ROLES.filter(r => r.successors.length === 0).length;
+
+    renderPipeline();
+    renderCriticalRoles();
+    renderBenchChart();
+    renderKeyRisks();
+}
+
+function renderPipeline() {
+    document.getElementById('pipelineStages').innerHTML = PIPELINE.map(p =>
+        `<div class="col"><div class="pipeline-stage" style="background:${p.color}20;border:2px solid ${p.color};"><div style="font-size:2rem;font-weight:700;color:${p.color};">${p.count}</div><small class="fw-bold">${p.stage}</small></div></div>`
+    ).join('');
+}
+
+function renderCriticalRoles() {
+    document.getElementById('criticalRolesList').innerHTML = CRITICAL_ROLES.map(r => {
+        const benchClass = `bench-${r.bench}`;
+        const benchLabel = r.bench === 'strong' ? 'Strong' : r.bench === 'adequate' ? 'Adequate' : r.bench === 'weak' ? 'Weak' : 'None';
+        return `<div class="role-card ${benchClass}">
+            <div class="d-flex justify-content-between align-items-start mb-3">
+                <div><h5 class="mb-1">${r.role}</h5><span class="text-muted">Current: ${r.holder} (${r.tenure})</span></div>
+                <span class="badge ${r.bench==='strong'?'bg-success':r.bench==='adequate'?'bg-primary':r.bench==='weak'?'bg-warning':'bg-danger'}">${benchLabel} Bench</span>
+            </div>
+            ${r.successors.length ? r.successors.map(s => `
+                <div class="successor-card">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div><strong>${s.name}</strong><br><small class="text-muted">${s.title}</small></div>
+                        <span class="readiness-pill ${s.readiness}">${s.readinessLabel}</span>
+                    </div>
+                    <div class="d-flex gap-4">
+                        <div><small class="fw-bold text-success">Strengths:</small><br>${s.strengths.map(st=>`<span class="skill-tag strong">${st}</span>`).join('')}</div>
+                        <div><small class="fw-bold text-danger">Gaps:</small><br>${s.gaps.map(g=>`<span class="skill-tag gap">${g}</span>`).join('')}</div>
+                    </div>
+                </div>
+            `).join('') : '<div class="text-center py-3 text-danger"><i class="bi bi-exclamation-triangle me-2"></i>No succession candidates identified</div>'}
+        </div>`;
+    }).join('');
+}
+
+function renderBenchChart() {
+    const ctx = document.getElementById('benchChart').getContext('2d');
+    if (benchChart) benchChart.destroy();
+    const counts = {Strong:0,Adequate:0,Weak:0,None:0};
+    CRITICAL_ROLES.forEach(r => {
+        const key = r.bench === 'strong' ? 'Strong' : r.bench === 'adequate' ? 'Adequate' : r.bench === 'weak' ? 'Weak' : 'None';
+        counts[key]++;
+    });
+    benchChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: Object.keys(counts),
+            datasets: [{data: Object.values(counts), backgroundColor: ['#27ae60','#3498db','#f39c12','#e74c3c']}]
+        },
+        options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+    });
+}
+
+function renderKeyRisks() {
+    document.getElementById('keyRisks').innerHTML = KEY_RISKS.map(r =>
+        `<div class="d-flex align-items-start mb-3"><i class="bi ${r.icon} me-2 mt-1" style="color:${r.color};font-size:1.2rem;"></i><span>${r.text}</span></div>`
+    ).join('');
+}
+
+loadData();
+</script>
+{% endblock %}

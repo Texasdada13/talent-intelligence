@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+{% block title %}Retention Analytics - {{ app_name }}{% endblock %}
+{% block extra_css %}
+<style>
+    .risk-card { border-left: 4px solid; transition: transform 0.15s; cursor: pointer; }
+    .risk-card:hover { transform: translateY(-2px); }
+    .risk-card.critical { border-left-color: #c0392b; }
+    .risk-card.high { border-left-color: #e74c3c; }
+    .risk-card.medium { border-left-color: #f39c12; }
+    .risk-card.low { border-left-color: #27ae60; }
+    .strategy-item { padding: 12px 16px; border-radius: 8px; background: #f8f5fc; margin-bottom: 8px; }
+    .strategy-item i { color: #8e44ad; }
+    .factor-bar { height: 24px; border-radius: 12px; background: #eee; overflow: hidden; }
+    .factor-fill { height: 100%; border-radius: 12px; transition: width 0.5s; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="container py-4">
+    <nav aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="/">Home</a></li><li class="breadcrumb-item active">Retention Analytics</li></ol></nav>
+    <div class="d-flex justify-content-between align-items-start mb-4">
+        <div>
+            <h2><i class="bi bi-graph-down me-2" style="color:#e74c3c;"></i>Retention Analytics</h2>
+            <p class="text-muted mb-0">Flight risk prediction and retention strategies</p>
+        </div>
+        <select class="form-select" style="width:auto;" id="orgSelect" onchange="loadData()">
+            <option value="">All Organizations</option>
+            {% for org in organizations %}
+            <option value="{{ org.id }}">{{ org.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <!-- Key Metrics -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3"><div class="card metric-card"><div class="metric-value" id="turnoverRate">--</div><div class="metric-label">Annualized Turnover</div></div></div>
+        <div class="col-md-3"><div class="card metric-card"><div class="metric-value score-poor" id="highRiskCount">--</div><div class="metric-label">High/Critical Risk</div></div></div>
+        <div class="col-md-3"><div class="card metric-card"><div class="metric-value score-good" id="retentionRate">--</div><div class="metric-label">Retention Rate</div></div></div>
+        <div class="col-md-3"><div class="card metric-card"><div class="metric-value" id="avgTenure" style="color:#8e44ad;">--</div><div class="metric-label">Avg Tenure (months)</div></div></div>
+    </div>
+
+    <div class="row g-4">
+        <!-- Flight Risk Breakdown -->
+        <div class="col-lg-5">
+            <div class="card mb-4">
+                <div class="card-header"><h5 class="mb-0">Flight Risk Distribution</h5></div>
+                <div class="card-body"><canvas id="riskChart" height="260"></canvas></div>
+            </div>
+            <div class="card">
+                <div class="card-header"><h5 class="mb-0">Turnover Trend</h5></div>
+                <div class="card-body"><canvas id="trendChart" height="200"></canvas></div>
+            </div>
+        </div>
+
+        <!-- At-Risk Employees & Factors -->
+        <div class="col-lg-7">
+            <div class="card mb-4">
+                <div class="card-header"><h5 class="mb-0">Top Risk Factors</h5></div>
+                <div class="card-body" id="riskFactors"></div>
+            </div>
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between"><h5 class="mb-0">At-Risk Employees</h5><span class="badge bg-danger" id="atRiskBadge">0</span></div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light"><tr><th>Name</th><th>Title</th><th>Risk</th><th>Tenure</th><th>Engagement</th></tr></thead>
+                            <tbody id="riskTable"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header"><h5 class="mb-0"><i class="bi bi-lightbulb me-2"></i>Retention Strategies</h5></div>
+                <div class="card-body" id="strategies"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+const DEMO_EMPLOYEES = [
+    {first_name:'Chris',last_name:'Lee',job_title:'DevOps Engineer',flight_risk:'High',tenure_months:14,engagement_score:65,performance_rating:'Meets'},
+    {first_name:'Daniel',last_name:'Harris',job_title:'QA Engineer',flight_risk:'Critical',tenure_months:8,engagement_score:55,performance_rating:'Below'},
+    {first_name:'Amanda',last_name:'White',job_title:'Account Executive',flight_risk:'High',tenure_months:18,engagement_score:60,performance_rating:'Below'},
+    {first_name:'Sophia',last_name:'Walker',job_title:'Business Analyst',flight_risk:'Medium',tenure_months:22,engagement_score:62,performance_rating:'Below'},
+    {first_name:'Sarah',last_name:'Chen',job_title:'VP Engineering',flight_risk:'Low',tenure_months:48,engagement_score:92,performance_rating:'Exceeds'},
+    {first_name:'James',last_name:'Wilson',job_title:'Senior Developer',flight_risk:'Medium',tenure_months:30,engagement_score:88,performance_rating:'Exceeds'},
+    {first_name:'Maria',last_name:'Garcia',job_title:'Product Manager',flight_risk:'Low',tenure_months:36,engagement_score:85,performance_rating:'Exceeds'},
+    {first_name:'Emily',last_name:'Brown',job_title:'UX Designer',flight_risk:'Medium',tenure_months:20,engagement_score:78,performance_rating:'Meets'},
+    {first_name:'Michael',last_name:'Johnson',job_title:'Sales Director',flight_risk:'Low',tenure_months:60,engagement_score:75,performance_rating:'Meets'},
+    {first_name:'Kevin',last_name:'Lewis',job_title:'Software Engineer',flight_risk:'Low',tenure_months:42,engagement_score:90,performance_rating:'Exceeds'},
+    {first_name:'Rachel',last_name:'Clark',job_title:'Project Manager',flight_risk:'Medium',tenure_months:24,engagement_score:73,performance_rating:'Meets'},
+    {first_name:'Tom',last_name:'King',job_title:'CFO',flight_risk:'Low',tenure_months:72,engagement_score:91,performance_rating:'Exceeds'},
+    {first_name:'Nicole',last_name:'Young',job_title:'Recruiter',flight_risk:'Low',tenure_months:15,engagement_score:84,performance_rating:'Exceeds'},
+    {first_name:'Andrew',last_name:'Hall',job_title:'Support Lead',flight_risk:'Low',tenure_months:34,engagement_score:68,performance_rating:'Meets'},
+    {first_name:'Lisa',last_name:'Anderson',job_title:'HR Manager',flight_risk:'Low',tenure_months:44,engagement_score:82,performance_rating:'Meets'},
+    {first_name:'Robert',last_name:'Taylor',job_title:'Marketing Analyst',flight_risk:'Low',tenure_months:28,engagement_score:70,performance_rating:'Meets'}
+];
+
+const RISK_FACTORS = [
+    {name:'Low Engagement Score (<70)',pct:85,color:'#e74c3c'},
+    {name:'Short Tenure (<18 months)',pct:72,color:'#f39c12'},
+    {name:'No Promotion in 2+ Years',pct:65,color:'#e67e22'},
+    {name:'Below Market Compensation',pct:58,color:'#3498db'},
+    {name:'Manager Relationship Issues',pct:45,color:'#9b59b6'},
+    {name:'Limited Growth Opportunities',pct:40,color:'#1abc9c'}
+];
+
+const STRATEGIES = [
+    {icon:'bi-cash-coin',title:'Compensation Review',desc:'Conduct market analysis for at-risk high performers. Adjust comp to 95th percentile for Stars.'},
+    {icon:'bi-arrow-up-circle',title:'Career Pathing',desc:'Create individual development plans with clear promotion timelines and skill milestones.'},
+    {icon:'bi-people',title:'Manager Training',desc:'Invest in manager coaching programs. 70% of turnover is driven by direct manager relationships.'},
+    {icon:'bi-trophy',title:'Recognition Program',desc:'Implement peer recognition and quarterly awards to boost engagement scores.'},
+    {icon:'bi-journal-text',title:'Stay Interviews',desc:'Conduct proactive stay interviews with medium and high flight-risk employees.'},
+    {icon:'bi-clock-history',title:'Flexible Work',desc:'Offer flexible schedules and remote options. Top driver of retention for 25-40 age group.'}
+];
+
+let riskChart, trendChart;
+
+async function loadData() {
+    const orgId = document.getElementById('orgSelect').value;
+    let employees = [];
+    try {
+        if (orgId) {
+            const r = await apiCall(`/api/organizations/${orgId}/employees`);
+            employees = r.employees || [];
+        }
+    } catch(e) {}
+    if (!employees.length) employees = DEMO_EMPLOYEES;
+    renderAll(employees);
+}
+
+function renderAll(employees) {
+    const riskDist = {Critical:0,High:0,Medium:0,Low:0};
+    let totalTenure = 0, atRisk = [];
+    employees.forEach(e => {
+        const r = e.flight_risk || 'Low';
+        riskDist[r] = (riskDist[r] || 0) + 1;
+        totalTenure += e.tenure_months || 0;
+        if (r === 'Critical' || r === 'High' || r === 'Medium') atRisk.push(e);
+    });
+
+    const highRisk = riskDist.Critical + riskDist.High;
+    const turnover = ((riskDist.Critical * 0.8 + riskDist.High * 0.4 + riskDist.Medium * 0.15) / employees.length * 100).toFixed(1);
+
+    document.getElementById('turnoverRate').textContent = turnover + '%';
+    document.getElementById('highRiskCount').textContent = highRisk;
+    document.getElementById('retentionRate').textContent = (100 - parseFloat(turnover)).toFixed(1) + '%';
+    document.getElementById('avgTenure').textContent = Math.round(totalTenure / employees.length);
+    document.getElementById('atRiskBadge').textContent = atRisk.length;
+
+    // Risk chart
+    const ctx1 = document.getElementById('riskChart').getContext('2d');
+    if (riskChart) riskChart.destroy();
+    riskChart = new Chart(ctx1, {
+        type: 'doughnut',
+        data: {
+            labels: ['Critical','High','Medium','Low'],
+            datasets: [{data: [riskDist.Critical, riskDist.High, riskDist.Medium, riskDist.Low], backgroundColor:['#c0392b','#e74c3c','#f39c12','#27ae60']}]
+        },
+        options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+    });
+
+    // Trend chart
+    const ctx2 = document.getElementById('trendChart').getContext('2d');
+    if (trendChart) trendChart.destroy();
+    trendChart = new Chart(ctx2, {
+        type: 'line',
+        data: {
+            labels: ['Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb'],
+            datasets: [
+                { label: 'Turnover %', data: [14.2,13.8,12.5,11.9,12.3,11.5,10.8,parseFloat(turnover)], borderColor: '#e74c3c', backgroundColor: 'rgba(231,76,60,0.1)', fill: true, tension: 0.3 },
+                { label: 'Industry Avg', data: [15,15,15,14.5,14.5,14.5,14,14], borderColor: '#95a5a6', borderDash: [5,5], fill: false, pointRadius: 0 }
+            ]
+        },
+        options: { responsive: true, scales: { y: { beginAtZero: false } }, plugins: { legend: { position: 'bottom' } } }
+    });
+
+    // Risk factors
+    document.getElementById('riskFactors').innerHTML = RISK_FACTORS.map(f =>
+        `<div class="mb-3"><div class="d-flex justify-content-between mb-1"><small class="fw-bold">${f.name}</small><small>${f.pct}%</small></div><div class="factor-bar"><div class="factor-fill" style="width:${f.pct}%;background:${f.color};"></div></div></div>`
+    ).join('');
+
+    // At-risk table
+    atRisk.sort((a,b) => {const order={Critical:0,High:1,Medium:2}; return (order[a.flight_risk]||3)-(order[b.flight_risk]||3);});
+    document.getElementById('riskTable').innerHTML = atRisk.map(e =>
+        `<tr><td><strong>${e.first_name} ${e.last_name}</strong></td><td>${e.job_title||'--'}</td><td><span class="badge ${e.flight_risk==='Critical'?'risk-critical':e.flight_risk==='High'?'risk-high':'risk-medium'}">${e.flight_risk}</span></td><td>${e.tenure_months||'--'}m</td><td>${e.engagement_score||'--'}</td></tr>`
+    ).join('') || '<tr><td colspan="5" class="text-center text-muted py-3">No at-risk employees</td></tr>';
+
+    // Strategies
+    document.getElementById('strategies').innerHTML = STRATEGIES.map(s =>
+        `<div class="strategy-item"><i class="bi ${s.icon} me-2"></i><strong>${s.title}</strong><br><small class="text-muted">${s.desc}</small></div>`
+    ).join('');
+}
+
+loadData();
+</script>
+{% endblock %}

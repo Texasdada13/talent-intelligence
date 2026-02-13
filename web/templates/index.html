@@ -21,22 +21,24 @@
     <div class="container">
         <h2 class="text-center fw-bold mb-5">Complete Talent Management</h2>
         <div class="row g-4">
-            {% for icon, title, desc in [
-                ('bi-person-check', 'Talent Assessment', '9-box grids, performance & potential analysis'),
-                ('bi-graph-down', 'Retention Analytics', 'Flight risk prediction and retention strategies'),
-                ('bi-calendar-check', 'Workforce Planning', 'Headcount forecasting and skill gap analysis'),
-                ('bi-diagram-3', 'Succession Planning', 'Leadership pipeline and bench strength'),
-                ('bi-pie-chart', 'Diversity & Inclusion', 'Representation metrics and pay equity'),
-                ('bi-chat-dots', 'AI Consultation', 'Instant HR advice from your AI CHRO')
+            {% for icon, title, desc, url in [
+                ('bi-person-check', 'Talent Assessment', '9-box grids, performance & potential analysis', '/talent-assessment'),
+                ('bi-graph-down', 'Retention Analytics', 'Flight risk prediction and retention strategies', '/retention'),
+                ('bi-calendar-check', 'Workforce Planning', 'Headcount forecasting and skill gap analysis', '/workforce-planning'),
+                ('bi-diagram-3', 'Succession Planning', 'Leadership pipeline and bench strength', '/succession-planning'),
+                ('bi-pie-chart', 'Diversity & Inclusion', 'Representation metrics and pay equity', '/diversity'),
+                ('bi-chat-dots', 'AI Consultation', 'Instant HR advice from your AI CHRO', '/chat')
             ] %}
             <div class="col-md-6 col-lg-4">
-                <div class="card h-100 p-4">
-                    <div class="feature-icon mb-3" style="width:60px;height:60px;background:#f3e5f5;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.5rem;color:#8e44ad;">
-                        <i class="{{ icon }}"></i>
+                <a href="{{ url }}" class="text-decoration-none">
+                    <div class="card h-100 p-4" style="transition: transform 0.15s, box-shadow 0.15s; cursor: pointer;" onmouseover="this.style.transform='translateY(-4px)';this.style.boxShadow='0 8px 24px rgba(0,0,0,0.12)';" onmouseout="this.style.transform='';this.style.boxShadow='';">
+                        <div class="feature-icon mb-3" style="width:60px;height:60px;background:#f3e5f5;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.5rem;color:#8e44ad;">
+                            <i class="{{ icon }}"></i>
+                        </div>
+                        <h5 class="text-dark">{{ title }}</h5>
+                        <p class="text-muted mb-0">{{ desc }}</p>
                     </div>
-                    <h5>{{ title }}</h5>
-                    <p class="text-muted">{{ desc }}</p>
-                </div>
+                </a>
             </div>
             {% endfor %}
         </div>

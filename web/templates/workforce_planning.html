@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+{% block title %}Workforce Planning - {{ app_name }}{% endblock %}
+{% block extra_css %}
+<style>
+    .gap-indicator { padding: 8px 16px; border-radius: 8px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+    .gap-surplus { background: #d5f5e3; color: #1e8449; }
+    .gap-balanced { background: #d6eaf8; color: #1a4a6e; }
+    .gap-deficit { background: #fadbd8; color: #c0392b; }
+    .gap-critical { background: #c0392b; color: white; }
+    .forecast-card { border-left: 4px solid #8e44ad; }
+    .skill-tag { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; margin: 2px; background: #f3e5f5; color: #5c2d91; }
+    .skill-tag.gap { background: #fadbd8; color: #c0392b; }
+    .skill-tag.strong { background: #d5f5e3; color: #1e8449; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="container py-4">
+    <nav aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="/">Home</a></li><li class="breadcrumb-item active">Workforce Planning</li></ol></nav>
+    <div class="d-flex justify-content-between align-items-start mb-4">
+        <div>
+            <h2><i class="bi bi-calendar-check me-2" style="color:#2ecc71;"></i>Workforce Planning</h2>
+            <p class="text-muted mb-0">Headcount forecasting and skill gap analysis</p>
+        </div>
+        <select class="form-select" style="width:auto;" id="orgSelect" onchange="loadData()">
+            <option value="">All Organizations</option>
+            {% for org in organizations %}
+            <option value="{{ org.id }}">{{ org.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <!-- Key Metrics -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-2"><div class="card metric-card"><div class="metric-value" id="currentHC">--</div><div class="metric-label">Current Headcount</div></div></div>
+        <div class="col-md-2"><div class="card metric-card"><div class="metric-value score-good" id="plannedHires">--</div><div class="metric-label">Planned Hires</div></div></div>
+        <div class="col-md-2"><div class="card metric-card"><div class="metric-value score-poor" id="expectedAttrition">--</div><div class="metric-label">Expected Attrition</div></div></div>
+        <div class="col-md-2"><div class="card metric-card"><div class="metric-value" style="color:#8e44ad;" id="projectedHC">--</div><div class="metric-label">Projected HC (EOY)</div></div></div>
+        <div class="col-md-2"><div class="card metric-card"><div class="metric-value" id="openReqs">--</div><div class="metric-label">Open Requisitions</div></div></div>
+        <div class="col-md-2"><div class="card metric-card"><div class="metric-value" id="ttf">--</div><div class="metric-label">Avg Time to Fill</div></div></div>
+    </div>
+
+    <div class="row g-4">
+        <!-- Headcount Forecast -->
+        <div class="col-lg-8">
+            <div class="card mb-4">
+                <div class="card-header"><h5 class="mb-0">Headcount Forecast</h5></div>
+                <div class="card-body"><canvas id="forecastChart" height="280"></canvas></div>
+            </div>
+            <div class="card">
+                <div class="card-header"><h5 class="mb-0">Department Breakdown</h5></div>
+                <div class="card-body"><canvas id="deptChart" height="250"></canvas></div>
+            </div>
+        </div>
+
+        <!-- Right Sidebar -->
+        <div class="col-lg-4">
+            <!-- Skill Gap Analysis -->
+            <div class="card mb-4">
+                <div class="card-header"><h5 class="mb-0">Skill Gap Analysis</h5></div>
+                <div class="card-body" id="skillGaps"></div>
+            </div>
+            <!-- Department Gaps -->
+            <div class="card mb-4">
+                <div class="card-header"><h5 class="mb-0">Department Staffing</h5></div>
+                <div class="card-body" id="deptGaps"></div>
+            </div>
+            <!-- Hiring Plan -->
+            <div class="card">
+                <div class="card-header"><h5 class="mb-0"><i class="bi bi-clipboard-check me-2"></i>Hiring Priorities</h5></div>
+                <div class="card-body" id="hiringPlan"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+const DEPARTMENTS = [
+    {name:'Engineering',current:45,target:55,open:8,attrition:4},
+    {name:'Sales',current:22,target:28,open:5,attrition:3},
+    {name:'Marketing',current:15,target:18,open:2,attrition:1},
+    {name:'Product',current:12,target:14,open:2,attrition:1},
+    {name:'Operations',current:18,target:20,open:1,attrition:2},
+    {name:'HR',current:8,target:9,open:1,attrition:0},
+    {name:'Finance',current:10,target:10,open:0,attrition:1},
+    {name:'Support',current:14,target:16,open:3,attrition:2}
+];
+
+const SKILL_GAPS = [
+    {skill:'AI/ML Engineering',status:'critical',need:8,have:2},
+    {skill:'Cloud Architecture',status:'deficit',need:6,have:3},
+    {skill:'Data Engineering',status:'deficit',need:5,have:2},
+    {skill:'Product Management',status:'balanced',need:4,have:4},
+    {skill:'DevOps/SRE',status:'deficit',need:4,have:2},
+    {skill:'UX Research',status:'deficit',need:3,have:1},
+    {skill:'Full-Stack Dev',status:'surplus',need:10,have:14},
+    {skill:'Sales Ops',status:'balanced',need:3,have:3}
+];
+
+const HIRING_PRIORITIES = [
+    {role:'Senior ML Engineer',dept:'Engineering',urgency:'Critical',reason:'AI product roadmap dependent'},
+    {role:'Cloud Architect',dept:'Engineering',urgency:'High',reason:'Infrastructure scaling needed'},
+    {role:'Data Engineer',dept:'Engineering',urgency:'High',reason:'Data pipeline bottleneck'},
+    {role:'Enterprise AE',dept:'Sales',urgency:'High',reason:'Q2 revenue targets'},
+    {role:'UX Researcher',dept:'Product',urgency:'Medium',reason:'User research backlog'},
+    {role:'DevOps Engineer',dept:'Engineering',urgency:'Medium',reason:'Deployment automation'}
+];
+
+let forecastChart, deptChart;
+
+function loadData() {
+    const totalCurrent = DEPARTMENTS.reduce((s,d) => s+d.current, 0);
+    const totalTarget = DEPARTMENTS.reduce((s,d) => s+d.target, 0);
+    const totalOpen = DEPARTMENTS.reduce((s,d) => s+d.open, 0);
+    const totalAttrition = DEPARTMENTS.reduce((s,d) => s+d.attrition, 0);
+    const plannedHires = totalTarget - totalCurrent + totalAttrition;
+
+    document.getElementById('currentHC').textContent = totalCurrent;
+    document.getElementById('plannedHires').textContent = plannedHires;
+    document.getElementById('expectedAttrition').textContent = totalAttrition;
+    document.getElementById('projectedHC').textContent = totalTarget;
+    document.getElementById('openReqs').textContent = totalOpen;
+    document.getElementById('ttf').textContent = '42d';
+
+    renderForecastChart(totalCurrent, totalTarget);
+    renderDeptChart();
+    renderSkillGaps();
+    renderDeptGaps();
+    renderHiringPlan();
+}
+
+function renderForecastChart(current, target) {
+    const ctx = document.getElementById('forecastChart').getContext('2d');
+    if (forecastChart) forecastChart.destroy();
+    const months = ['Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const step = (target - current) / months.length;
+    const projected = months.map((_,i) => Math.round(current + step * (i+1)));
+    const attritionLine = months.map((_,i) => Math.round(current - (i+1) * 1.2));
+    const netLine = months.map((_,i) => projected[i]);
+
+    forecastChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: months,
+            datasets: [
+                { label: 'Projected Headcount', data: projected, borderColor: '#8e44ad', backgroundColor: 'rgba(142,68,173,0.1)', fill: true, tension: 0.3 },
+                { label: 'Target', data: months.map(() => target), borderColor: '#27ae60', borderDash: [5,5], fill: false, pointRadius: 0 },
+                { label: 'If No Hires (Attrition Only)', data: attritionLine, borderColor: '#e74c3c', borderDash: [3,3], fill: false, pointRadius: 0 }
+            ]
+        },
+        options: { responsive: true, scales: { y: { beginAtZero: false } }, plugins: { legend: { position: 'bottom' } } }
+    });
+}
+
+function renderDeptChart() {
+    const ctx = document.getElementById('deptChart').getContext('2d');
+    if (deptChart) deptChart.destroy();
+    deptChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: DEPARTMENTS.map(d => d.name),
+            datasets: [
+                { label: 'Current', data: DEPARTMENTS.map(d => d.current), backgroundColor: '#8e44ad' },
+                { label: 'Target', data: DEPARTMENTS.map(d => d.target), backgroundColor: '#d2b4de' },
+                { label: 'Open Reqs', data: DEPARTMENTS.map(d => d.open), backgroundColor: '#f39c12' }
+            ]
+        },
+        options: { responsive: true, scales: { y: { beginAtZero: true } }, plugins: { legend: { position: 'bottom' } } }
+    });
+}
+
+function renderSkillGaps() {
+    document.getElementById('skillGaps').innerHTML = SKILL_GAPS.map(s => {
+        const cls = s.status === 'critical' ? 'gap-critical' : s.status === 'deficit' ? 'gap-deficit' : s.status === 'balanced' ? 'gap-balanced' : 'gap-surplus';
+        const label = s.status === 'critical' ? 'CRITICAL' : s.status === 'deficit' ? `Need ${s.need - s.have} more` : s.status === 'balanced' ? 'Balanced' : `+${s.have - s.need} surplus`;
+        return `<div class="gap-indicator ${cls}"><span>${s.skill}</span><strong>${label}</strong></div>`;
+    }).join('');
+}
+
+function renderDeptGaps() {
+    document.getElementById('deptGaps').innerHTML = DEPARTMENTS.map(d => {
+        const diff = d.current - d.target;
+        const cls = diff >= 0 ? 'gap-surplus' : diff >= -3 ? 'gap-deficit' : 'gap-critical';
+        const pct = Math.round((d.current / d.target) * 100);
+        return `<div class="d-flex justify-content-between align-items-center mb-2"><span class="fw-bold" style="min-width:100px;">${d.name}</span><div class="flex-fill mx-2"><div class="progress" style="height:20px;"><div class="progress-bar ${pct>=100?'bg-success':pct>=80?'bg-warning':'bg-danger'}" style="width:${Math.min(pct,100)}%">${pct}%</div></div></div><small class="text-muted">${d.current}/${d.target}</small></div>`;
+    }).join('');
+}
+
+function renderHiringPlan() {
+    document.getElementById('hiringPlan').innerHTML = HIRING_PRIORITIES.map(h => {
+        const color = h.urgency === 'Critical' ? '#c0392b' : h.urgency === 'High' ? '#e74c3c' : '#f39c12';
+        return `<div class="d-flex align-items-start mb-3"><span class="badge me-2" style="background:${color};min-width:60px;">${h.urgency}</span><div><strong>${h.role}</strong><br><small class="text-muted">${h.dept} &middot; ${h.reason}</small></div></div>`;
+    }).join('');
+}
+
+loadData();
+</script>
+{% endblock %}

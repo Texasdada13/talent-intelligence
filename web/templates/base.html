@@ -33,9 +33,20 @@
     <nav class="navbar navbar-expand-lg navbar-dark">
         <div class="container">
             <a class="navbar-brand" href="/"><i class="bi bi-people-fill me-2"></i>{{ app_name }}</a>
-            <div class="collapse navbar-collapse">
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"><span class="navbar-toggler-icon"></span></button>
+            <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto">
                     <li class="nav-item"><a class="nav-link" href="/dashboard"><i class="bi bi-speedometer2 me-1"></i>Dashboard</a></li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">Tools</a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="/talent-assessment"><i class="bi bi-person-check me-2"></i>Talent Assessment</a></li>
+                            <li><a class="dropdown-item" href="/retention"><i class="bi bi-graph-down me-2"></i>Retention Analytics</a></li>
+                            <li><a class="dropdown-item" href="/workforce-planning"><i class="bi bi-calendar-check me-2"></i>Workforce Planning</a></li>
+                            <li><a class="dropdown-item" href="/succession-planning"><i class="bi bi-diagram-3 me-2"></i>Succession Planning</a></li>
+                            <li><a class="dropdown-item" href="/diversity"><i class="bi bi-pie-chart me-2"></i>Diversity & Inclusion</a></li>
+                        </ul>
+                    </li>
                     <li class="nav-item"><a class="nav-link" href="/integrations"><i class="bi bi-plug me-1"></i>Integrations</a></li>
                     <li class="nav-item"><a class="nav-link" href="/chat"><i class="bi bi-chat-dots me-1"></i>AI Consultant</a></li>
                 </ul>

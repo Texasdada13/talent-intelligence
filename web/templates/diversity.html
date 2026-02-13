@@ -1,0 +1,219 @@
+{% extends "base.html" %}
+{% block title %}Diversity & Inclusion - {{ app_name }}{% endblock %}
+{% block extra_css %}
+<style>
+    .dei-card { border-top: 4px solid; border-radius: 12px; }
+    .dei-card.gender { border-top-color: #8e44ad; }
+    .dei-card.ethnicity { border-top-color: #2980b9; }
+    .dei-card.age { border-top-color: #27ae60; }
+    .dei-card.pay { border-top-color: #e74c3c; }
+    .equity-bar { display: flex; align-items: center; margin-bottom: 10px; }
+    .equity-label { min-width: 140px; font-weight: 500; }
+    .equity-value { min-width: 80px; text-align: right; font-weight: 700; }
+    .goal-progress { padding: 12px 16px; border-radius: 8px; background: #f8f5fc; margin-bottom: 8px; }
+    .trend-up { color: #27ae60; } .trend-down { color: #e74c3c; } .trend-flat { color: #95a5a6; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="container py-4">
+    <nav aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="/">Home</a></li><li class="breadcrumb-item active">Diversity & Inclusion</li></ol></nav>
+    <div class="d-flex justify-content-between align-items-start mb-4">
+        <div>
+            <h2><i class="bi bi-pie-chart me-2" style="color:#8e44ad;"></i>Diversity &amp; Inclusion</h2>
+            <p class="text-muted mb-0">Representation metrics, pay equity, and inclusion insights</p>
+        </div>
+        <select class="form-select" style="width:auto;" id="orgSelect" onchange="loadData()">
+            <option value="">All Organizations</option>
+            {% for org in organizations %}
+            <option value="{{ org.id }}">{{ org.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <!-- Summary Metrics -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3"><div class="card metric-card"><div class="metric-value" style="color:#8e44ad;" id="diversityScore">--</div><div class="metric-label">Diversity Score</div></div></div>
+        <div class="col-md-3"><div class="card metric-card"><div class="metric-value" id="genderRatio">--</div><div class="metric-label">Women in Workforce</div></div></div>
+        <div class="col-md-3"><div class="card metric-card"><div class="metric-value" id="leadershipDiv">--</div><div class="metric-label">Diverse Leadership</div></div></div>
+        <div class="col-md-3"><div class="card metric-card"><div class="metric-value" id="payGap">--</div><div class="metric-label">Pay Equity Gap</div></div></div>
+    </div>
+
+    <div class="row g-4">
+        <!-- Gender Representation -->
+        <div class="col-lg-4">
+            <div class="card dei-card gender mb-4">
+                <div class="card-header"><h5 class="mb-0">Gender Representation</h5></div>
+                <div class="card-body"><canvas id="genderChart" height="240"></canvas></div>
+            </div>
+            <div class="card dei-card age">
+                <div class="card-header"><h5 class="mb-0">Age Distribution</h5></div>
+                <div class="card-body"><canvas id="ageChart" height="240"></canvas></div>
+            </div>
+        </div>
+
+        <!-- Ethnicity & Leadership -->
+        <div class="col-lg-4">
+            <div class="card dei-card ethnicity mb-4">
+                <div class="card-header"><h5 class="mb-0">Ethnicity Representation</h5></div>
+                <div class="card-body"><canvas id="ethnicityChart" height="240"></canvas></div>
+            </div>
+            <div class="card dei-card ethnicity">
+                <div class="card-header"><h5 class="mb-0">Leadership Diversity</h5></div>
+                <div class="card-body"><canvas id="leaderChart" height="240"></canvas></div>
+            </div>
+        </div>
+
+        <!-- Pay Equity & Goals -->
+        <div class="col-lg-4">
+            <div class="card dei-card pay mb-4">
+                <div class="card-header"><h5 class="mb-0">Pay Equity Analysis</h5></div>
+                <div class="card-body" id="payEquity"></div>
+            </div>
+            <div class="card mb-4">
+                <div class="card-header"><h5 class="mb-0">D&I Goals & Progress</h5></div>
+                <div class="card-body" id="diGoals"></div>
+            </div>
+            <div class="card">
+                <div class="card-header"><h5 class="mb-0">Trend</h5></div>
+                <div class="card-body"><canvas id="trendChart" height="180"></canvas></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+const GENDER_DATA = {overall:{Male:56,Female:40,NonBinary:4}, leadership:{Male:62,Female:33,NonBinary:5}};
+const ETHNICITY_DATA = {White:48,Asian:22,Hispanic:14,Black:10,Other:6};
+const ETHNICITY_LEADERSHIP = {White:55,Asian:20,Hispanic:12,Black:8,Other:5};
+const AGE_DATA = {'18-25':8,'26-35':35,'36-45':30,'46-55':18,'56+':9};
+const PAY_EQUITY = [
+    {group:'Women vs Men',ratio:0.96,gap:'-4.0%',trend:'up',trendVal:'+1.2%'},
+    {group:'Black vs White',ratio:0.94,gap:'-6.0%',trend:'up',trendVal:'+0.8%'},
+    {group:'Hispanic vs White',ratio:0.95,gap:'-5.0%',trend:'up',trendVal:'+1.0%'},
+    {group:'Asian vs White',ratio:1.02,gap:'+2.0%',trend:'flat',trendVal:'0.0%'}
+];
+const DI_GOALS = [
+    {goal:'40% women in leadership by 2026',current:33,target:40,status:'In Progress'},
+    {goal:'Pay equity gap < 3% all groups',current:65,target:100,status:'In Progress'},
+    {goal:'25% underrepresented in tech roles',current:18,target:25,status:'Behind'},
+    {goal:'95%+ inclusion survey score',current:87,target:95,status:'On Track'}
+];
+
+let genderChart, ethnicityChart, ageChart, leaderChart, trendChart;
+
+function loadData() {
+    document.getElementById('diversityScore').textContent = '72';
+    document.getElementById('genderRatio').textContent = '40%';
+    document.getElementById('leadershipDiv').textContent = '38%';
+    document.getElementById('payGap').textContent = '4.0%';
+
+    renderGenderChart();
+    renderEthnicityChart();
+    renderAgeChart();
+    renderLeaderChart();
+    renderPayEquity();
+    renderGoals();
+    renderTrendChart();
+}
+
+function renderGenderChart() {
+    const ctx = document.getElementById('genderChart').getContext('2d');
+    if (genderChart) genderChart.destroy();
+    genderChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Male','Female','Non-Binary'],
+            datasets: [{data: [GENDER_DATA.overall.Male, GENDER_DATA.overall.Female, GENDER_DATA.overall.NonBinary], backgroundColor:['#3498db','#e74c8b','#9b59b6']}]
+        },
+        options: { responsive: true, plugins: { legend: { position: 'bottom' }, title: { display: true, text: 'Overall Workforce' } } }
+    });
+}
+
+function renderEthnicityChart() {
+    const ctx = document.getElementById('ethnicityChart').getContext('2d');
+    if (ethnicityChart) ethnicityChart.destroy();
+    ethnicityChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: Object.keys(ETHNICITY_DATA),
+            datasets: [{data: Object.values(ETHNICITY_DATA), backgroundColor:['#3498db','#e74c3c','#f39c12','#27ae60','#9b59b6']}]
+        },
+        options: { responsive: true, plugins: { legend: { position: 'bottom' }, title: { display: true, text: 'Overall Workforce' } } }
+    });
+}
+
+function renderAgeChart() {
+    const ctx = document.getElementById('ageChart').getContext('2d');
+    if (ageChart) ageChart.destroy();
+    ageChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: Object.keys(AGE_DATA),
+            datasets: [{label:'Employees %',data: Object.values(AGE_DATA), backgroundColor:'#8e44ad'}]
+        },
+        options: { responsive: true, scales: { y: { beginAtZero: true } }, plugins: { legend: { display: false } } }
+    });
+}
+
+function renderLeaderChart() {
+    const ctx = document.getElementById('leaderChart').getContext('2d');
+    if (leaderChart) leaderChart.destroy();
+    leaderChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: Object.keys(ETHNICITY_LEADERSHIP),
+            datasets: [
+                {label:'Leadership %',data:Object.values(ETHNICITY_LEADERSHIP),backgroundColor:'#8e44ad'},
+                {label:'Workforce %',data:Object.values(ETHNICITY_DATA),backgroundColor:'#d2b4de'}
+            ]
+        },
+        options: { responsive: true, indexAxis: 'y', scales: { x: { beginAtZero: true } }, plugins: { legend: { position: 'bottom' } } }
+    });
+}
+
+function renderPayEquity() {
+    document.getElementById('payEquity').innerHTML = PAY_EQUITY.map(p => {
+        const color = p.ratio >= 0.98 ? '#27ae60' : p.ratio >= 0.95 ? '#f39c12' : '#e74c3c';
+        const pct = Math.round(p.ratio * 100);
+        return `<div class="equity-bar">
+            <span class="equity-label">${p.group}</span>
+            <div class="flex-fill mx-2"><div class="progress" style="height:22px;"><div class="progress-bar" style="width:${pct}%;background:${color};">${pct}%</div></div></div>
+            <span class="equity-value">${p.gap}</span>
+            <span class="ms-2 trend-${p.trend}"><i class="bi bi-arrow-${p.trend==='up'?'up':'right'}"></i> ${p.trendVal}</span>
+        </div>`;
+    }).join('');
+}
+
+function renderGoals() {
+    document.getElementById('diGoals').innerHTML = DI_GOALS.map(g => {
+        const color = g.status === 'Behind' ? '#e74c3c' : g.status === 'On Track' ? '#27ae60' : '#f39c12';
+        return `<div class="goal-progress">
+            <div class="d-flex justify-content-between mb-1"><small class="fw-bold">${g.goal}</small><span class="badge" style="background:${color};">${g.status}</span></div>
+            <div class="progress" style="height:8px;"><div class="progress-bar" style="width:${g.current}%;background:${color};"></div></div>
+            <small class="text-muted">${g.current}% of target</small>
+        </div>`;
+    }).join('');
+}
+
+function renderTrendChart() {
+    const ctx = document.getElementById('trendChart').getContext('2d');
+    if (trendChart) trendChart.destroy();
+    trendChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: ['Q1 24','Q2 24','Q3 24','Q4 24','Q1 25','Q2 25','Q3 25','Q4 25'],
+            datasets: [
+                {label:'Diversity Score',data:[62,64,65,67,68,70,71,72],borderColor:'#8e44ad',tension:0.3,fill:false},
+                {label:'Women %',data:[34,35,36,37,38,38,39,40],borderColor:'#e74c8b',tension:0.3,fill:false},
+                {label:'Pay Equity Index',data:[90,91,92,93,94,95,95,96],borderColor:'#27ae60',tension:0.3,fill:false}
+            ]
+        },
+        options: { responsive: true, scales: { y: { beginAtZero: false } }, plugins: { legend: { position: 'bottom' } } }
+    });
+}
+
+loadData();
+</script>
+{% endblock %}

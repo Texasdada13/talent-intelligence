@@ -72,6 +72,31 @@ def organization_detail(org_id):
                           employees=employees, metrics=metrics, talent_distribution=talent_dist,
                           flight_risk=flight_risk)
 
+@app.route('/talent-assessment')
+def talent_assessment():
+    organizations = repo.get_all_organizations()
+    return render_template('talent_assessment.html', organizations=organizations)
+
+@app.route('/retention')
+def retention_analytics():
+    organizations = repo.get_all_organizations()
+    return render_template('retention.html', organizations=organizations)
+
+@app.route('/workforce-planning')
+def workforce_planning():
+    organizations = repo.get_all_organizations()
+    return render_template('workforce_planning.html', organizations=organizations)
+
+@app.route('/succession-planning')
+def succession_planning():
+    organizations = repo.get_all_organizations()
+    return render_template('succession_planning.html', organizations=organizations)
+
+@app.route('/diversity')
+def diversity_inclusion():
+    organizations = repo.get_all_organizations()
+    return render_template('diversity.html', organizations=organizations)
+
 @app.route('/chat')
 @app.route('/chat/<org_id>')
 def chat_view(org_id=None):
