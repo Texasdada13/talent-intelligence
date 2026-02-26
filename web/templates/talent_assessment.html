@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Talent Assessment - {{ app_name }}{% endblock %}
+{% block page_title %}Talent Assessment{% endblock %}
 {% block extra_css %}
 <style>
     .nine-box { display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); gap: 4px; height: 420px; }
@@ -23,7 +24,6 @@
 </style>
 {% endblock %}
 {% block content %}
-<div class="container py-4">
     <nav aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="/">Home</a></li><li class="breadcrumb-item active">Talent Assessment</li></ol></nav>
     <div class="d-flex justify-content-between align-items-start mb-4">
         <div>

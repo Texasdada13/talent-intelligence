@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Retention Analytics - {{ app_name }}{% endblock %}
+{% block page_title %}Retention Analytics{% endblock %}
 {% block extra_css %}
 <style>
     .risk-card { border-left: 4px solid; transition: transform 0.15s; cursor: pointer; }
@@ -15,7 +16,6 @@
 </style>
 {% endblock %}
 {% block content %}
-<div class="container py-4">
     <nav aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="/">Home</a></li><li class="breadcrumb-item active">Retention Analytics</li></ol></nav>
     <div class="d-flex justify-content-between align-items-start mb-4">
         <div>

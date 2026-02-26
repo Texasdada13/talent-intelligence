@@ -34,9 +34,33 @@ repo = TalentRepository()
 from src.ai_core.chat_engine import create_chat_engine
 from src.patterns.benchmark_engine import create_hr_benchmarks
 from src.integrations import get_integration_manager
+from patriot_ui import init_ui
+from patriot_ui.config import NavItem, NavSection
 
 APP_NAME = "Talent Intelligence"
 APP_VERSION = "1.0.0"
+
+init_ui(app,
+    product_name="Talent Intelligence",
+    product_icon="bi-people",
+    show_org_selector=True,
+    nav_sections=[
+        NavSection("Overview", [
+            NavItem("Dashboard", "bi-speedometer2", "/dashboard"),
+            NavItem("AI Consultant", "bi-chat-dots", "/chat"),
+        ]),
+        NavSection("Tools", [
+            NavItem("Talent Assessment", "bi-person-check", "/talent-assessment"),
+            NavItem("Retention", "bi-arrow-repeat", "/retention"),
+            NavItem("Workforce Planning", "bi-diagram-3", "/workforce-planning"),
+            NavItem("Succession Planning", "bi-ladder", "/succession-planning"),
+            NavItem("Diversity & Inclusion", "bi-globe", "/diversity"),
+        ]),
+        NavSection("Connect", [
+            NavItem("Integrations", "bi-plug", "/integrations"),
+        ]),
+    ]
+)
 
 @app.context_processor
 def inject_globals():
